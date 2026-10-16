@@ -33,6 +33,27 @@ using tcp           = net::ip::tcp;
 // device manager expects a non-empty one. It is not a credential and must never be sent to Moonraker.
 constexpr const char* PLACEHOLDER_ACCESS_CODE = "88888888";
 
+// A spool's material ("PLA") matches many presets, and PresetCollection::filament_id_by_type() returns whichever comes
+// first in list order, which can be a special-effect variant such as "PLA Glow". Prefer the plain presets
+// ("Generic PLA", "PLA Basic") and only fall back to that lookup when none is visible and compatible.
+std::string pick_filament_id_for_type(const Slic3r::PresetCollection& filaments, const std::string& filament_type)
+{
+    const std::string type = boost::to_lower_copy(boost::trim_copy(filament_type));
+    for (const auto& p : filaments.get_presets()) {
+        if (!p.is_visible || !p.is_compatible || !p.is_system || p.filament_id.empty() || filaments.get_preset_base(p) != &p)
+            continue;
+        if (boost::to_lower_copy(p.config.opt_string("filament_type", 0u)) != type)
+            continue;
+        // Compare the name without its "@printer" suffix.
+        std::string name = p.name.substr(0, p.name.find('@'));
+        boost::trim(name);
+        boost::to_lower(name);
+        if (name == type || boost::ends_with(name, "generic " + type) || boost::ends_with(name, type + " basic"))
+            return p.filament_id;
+    }
+    return filaments.filament_id_by_type(filament_type);
+}
+
 struct WsEndpoint
 {
     std::string host;
@@ -810,7 +831,7 @@ bool MoonrakerPrinterAgent::fetch_moonraker_filament_data(std::vector<AmsTrayDat
         tray.has_filament = !tray.tray_type.empty();
         auto* bundle = GUI::wxGetApp().preset_bundle;
         tray.tray_info_idx = bundle
-            ? bundle->filaments.filament_id_by_type(tray.tray_type)
+            ? pick_filament_id_for_type(bundle->filaments, tray.tray_type)
             : map_filament_type_to_generic_id(tray.tray_type);
 
         max_lane_index = std::max(max_lane_index, lane_index);
@@ -938,7 +959,7 @@ bool MoonrakerPrinterAgent::fetch_hh_filament_info(std::vector<AmsTrayData>& tra
 
         auto* bundle = GUI::wxGetApp().preset_bundle;
         tray.tray_info_idx = bundle
-            ? bundle->filaments.filament_id_by_type(tray.tray_type)
+            ? pick_filament_id_for_type(bundle->filaments, tray.tray_type)
             : map_filament_type_to_generic_id(tray.tray_type);
 
         max_lane_index = std::max(max_lane_index, gate_idx);
