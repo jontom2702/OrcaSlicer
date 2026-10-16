@@ -29,6 +29,10 @@ namespace websocket = beast::websocket;
 namespace net       = boost::asio;
 using tcp           = net::ip::tcp;
 
+// GUI_App::select_machine() substitutes this access code when the printer has no API key configured, because the
+// device manager expects a non-empty one. It is not a credential and must never be sent to Moonraker.
+constexpr const char* PLACEHOLDER_ACCESS_CODE = "88888888";
+
 struct WsEndpoint
 {
     std::string host;
@@ -1070,7 +1074,9 @@ bool MoonrakerPrinterAgent::init_device_info(std::string dev_id, std::string dev
     const auto& printer_cfg = preset.config;
     device_info.dev_ip      = dev_ip;
 
-    device_info.api_key    = password;
+    // Moonraker answers 401 to a request that carries an invalid X-Api-Key, even from a trusted client, so only
+    // forward a key the user actually configured.
+    device_info.api_key    = password == PLACEHOLDER_ACCESS_CODE ? std::string() : password;
     device_info.model_name = printer_cfg.opt_string("printer_model");
     device_info.model_id   = preset.get_printer_type(preset_bundle);
     device_info.base_url   = use_ssl ? "https://" + dev_ip : "http://" + dev_ip;
@@ -1347,7 +1353,7 @@ void MoonrakerPrinterAgent::announce_printhost_device()
     const std::string model_id = device_info.model_id;
 
     if (auto* app_config = GUI::wxGetApp().app_config) {
-        const std::string access_code = device_info.api_key.empty() ? "88888888" : device_info.api_key;
+        const std::string access_code = device_info.api_key.empty() ? PLACEHOLDER_ACCESS_CODE : device_info.api_key;
         app_config->set_str("access_code", device_info.dev_id, access_code);
         app_config->set_str("user_access_code", device_info.dev_id, access_code);
     }
