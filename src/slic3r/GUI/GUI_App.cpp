@@ -6020,7 +6020,9 @@ std::string GUI_App::format_display_version()
 {
     if (!version_display.empty()) return version_display;
 
-    version_display = SoftFever_VERSION;
+    // Display only: SoftFever_VERSION itself stays untouched because profile migration, update checks and installer
+    // names depend on it. The build hash tells apart different builds of the same base version.
+    version_display = std::string(SoftFever_VERSION) + "-moonraker (" + GIT_COMMIT_HASH + ")";
     return version_display;
 }
 
