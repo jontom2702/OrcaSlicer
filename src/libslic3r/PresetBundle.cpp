@@ -18,6 +18,8 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/clamp.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/case_conv.hpp>
+#include <boost/algorithm/string/trim.hpp>
 #include <boost/range/adaptor/transformed.hpp>
 #include <boost/nowide/cstdio.hpp>
 #include <boost/nowide/fstream.hpp>
@@ -3233,6 +3235,21 @@ unsigned int PresetBundle::sync_ams_list(std::vector<std::pair<DynamicPrintConfi
         auto iter = std::find_if(filaments.begin(), filaments.end(), [this, &filament_id, &has_type, filament_type](auto &f) {
             has_type |= f.config.opt_string("filament_type", 0u) == filament_type;
             return f.is_compatible && filaments.get_preset_base(f) == &f && f.filament_id == filament_id; });
+        if (iter != filaments.end()) {
+            // Several presets can share one filament_id (e.g. vendor variants inheriting a generic id);
+            // prefer the plain "Generic ..." / "... Basic" one over whichever happens to be listed first.
+            auto is_plain = [](const std::string& name) {
+                std::string n = boost::to_lower_copy(name.substr(0, name.find('@')));
+                boost::trim(n);
+                return boost::starts_with(n, "generic ") || boost::contains(n, " generic ") || boost::ends_with(n, " basic");
+            };
+            if (!is_plain(iter->name)) {
+                auto plain = std::find_if(iter, filaments.end(), [&](auto &f) {
+                    return f.is_compatible && filaments.get_preset_base(f) == &f && f.filament_id == filament_id && is_plain(f.name); });
+                if (plain != filaments.end())
+                    iter = plain;
+            }
+        }
         if (iter == filaments.end()) {
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": filament_id %1% not found or system or compatible") % filament_id;
             if (!filament_type.empty()) {
