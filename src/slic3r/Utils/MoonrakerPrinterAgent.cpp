@@ -36,8 +36,20 @@ constexpr const char* PLACEHOLDER_ACCESS_CODE = "88888888";
 // A spool's material ("PLA") matches many presets, and PresetCollection::filament_id_by_type() returns whichever comes
 // first in list order, which can be a special-effect variant such as "PLA Glow". Prefer the plain presets
 // ("Generic PLA", "PLA Basic") and only fall back to that lookup when none is visible and compatible.
-std::string pick_filament_id_for_type(const Slic3r::PresetCollection& filaments, const std::string& filament_type)
+std::string pick_filament_id_for_type(const Slic3r::PresetCollection& filaments, const std::string& filament_type, const std::string& product_name = std::string())
 {
+    // An exact product name reported by the printer (e.g. "Bambu PLA Basic") wins over the generic type match.
+    const std::string product = boost::to_lower_copy(boost::trim_copy(product_name));
+    if (!product.empty()) {
+        for (const auto& p : filaments.get_presets()) {
+            if (!p.is_visible || !p.is_compatible || !p.is_system || p.filament_id.empty() || filaments.get_preset_base(p) != &p)
+                continue;
+            std::string name = p.name.substr(0, p.name.find('@'));
+            boost::trim(name);
+            if (boost::to_lower_copy(name) == product)
+                return p.filament_id;
+        }
+    }
     const std::string type = boost::to_lower_copy(boost::trim_copy(filament_type));
     for (const auto& p : filaments.get_presets()) {
         if (!p.is_visible || !p.is_compatible || !p.is_system || p.filament_id.empty() || filaments.get_preset_base(p) != &p)
@@ -831,8 +843,10 @@ bool MoonrakerPrinterAgent::fetch_moonraker_filament_data(std::vector<AmsTrayDat
         tray.has_filament = !tray.tray_type.empty();
         auto* bundle = GUI::wxGetApp().preset_bundle;
         tray.tray_info_idx = bundle
-            ? pick_filament_id_for_type(bundle->filaments, tray.tray_type)
+            ? pick_filament_id_for_type(bundle->filaments, tray.tray_type, safe_json_string(lane_obj, "helix_product_name"))
             : map_filament_type_to_generic_id(tray.tray_type);
+        BOOST_LOG_TRIVIAL(info) << "MoonrakerPrinterAgent: lane " << lane_index << " material=" << tray.tray_type
+                                << " product=" << safe_json_string(lane_obj, "helix_product_name") << " -> filament_id=" << tray.tray_info_idx;
 
         max_lane_index = std::max(max_lane_index, lane_index);
         trays.push_back(tray);
