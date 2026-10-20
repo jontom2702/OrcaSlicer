@@ -1062,6 +1062,8 @@ public:
     void                update_extruder_count(size_t extruder_count);
     void                update_extruder_count_when_delete_filament(size_t extruder_count, size_t filament_id, int replace_filament_id = -1,
                                                                    const std::vector<unsigned char> &filament_is_mixed = {});
+    // Exchange filament a and b (1-based) in this volume's extruder / support filaments and painted facets.
+    void                swap_filaments(size_t a, size_t b, size_t extruder_count);
 
     // Split this volume, append the result to the object owning this volume.
     // Return the number of volumes created from this one.
