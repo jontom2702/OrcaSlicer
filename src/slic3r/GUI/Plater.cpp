@@ -3246,6 +3246,90 @@ void Sidebar::change_filament(size_t from_id, size_t to_id)
     delete_filament(from_id, int(to_id));
 }
 
+void Sidebar::swap_filaments(size_t a, size_t b)
+{
+    PresetBundle& bundle = *wxGetApp().preset_bundle;
+    const size_t  n      = p->combos_filament.size();
+    if (a == b || a >= n || b >= n || bundle.filament_presets.size() < n)
+        return;
+
+    std::swap(bundle.filament_presets[a], bundle.filament_presets[b]);
+    auto swap_strings = [&](const char* key) {
+        auto* opt = bundle.project_config.option<ConfigOptionStrings>(key);
+        if (opt && opt->values.size() > std::max(a, b))
+            std::swap(opt->values[a], opt->values[b]);
+    };
+    swap_strings("filament_colour");
+    swap_strings("filament_colour_type");
+    swap_strings("filament_multi_colour");
+
+    // Filament changes inserted by the user (1-based extruder numbers).
+    for (auto& plate : wxGetApp().model().plates_custom_gcodes)
+        for (auto& gcode : plate.second.gcodes)
+            if (gcode.type == CustomGCode::Type::ToolChange) {
+                if (gcode.extruder == int(a) + 1)
+                    gcode.extruder = int(b) + 1;
+                else if (gcode.extruder == int(b) + 1)
+                    gcode.extruder = int(a) + 1;
+            }
+
+    obj_list()->swap_filament_values(a, b, n);
+}
+
+void Sidebar::apply_filament_slot_order(const std::map<int, int>& dest)
+{
+    if (dest.empty())
+        return;
+    int needed = int(p->combos_filament.size());
+    for (const auto& [from, to] : dest)
+        needed = std::max(needed, to + 1);
+    needed = std::min(needed, int(MAXIMUM_EXTRUDER_NUMBER));
+    while (int(p->combos_filament.size()) < needed)
+        add_filament();
+    const int n = int(p->combos_filament.size());
+
+    // want[pos] = index of the filament that has to end up at pos.
+    std::vector<int> want(n, -1);
+    std::vector<bool> placed(n, false);
+    for (const auto& [from, to] : dest)
+        if (from >= 0 && from < n && to >= 0 && to < n && want[to] < 0 && !placed[from]) {
+            want[to]    = from;
+            placed[from] = true;
+        }
+    int next_free = 0;
+    for (int pos = 0; pos < n; ++pos) {
+        if (want[pos] >= 0)
+            continue;
+        while (next_free < n && placed[next_free])
+            ++next_free;
+        if (next_free < n) {
+            want[pos]        = next_free;
+            placed[next_free] = true;
+        }
+    }
+
+    std::vector<int> cur(n);
+    for (int i = 0; i < n; ++i)
+        cur[i] = i;
+    for (int pos = 0; pos < n; ++pos) {
+        if (want[pos] < 0 || cur[pos] == want[pos])
+            continue;
+        int j = pos + 1;
+        while (j < n && cur[j] != want[pos])
+            ++j;
+        if (j >= n)
+            continue;
+        swap_filaments(size_t(pos), size_t(j));
+        std::swap(cur[pos], cur[j]);
+    }
+
+    for (auto& c : p->combos_filament)
+        c->update();
+    wxGetApp().plater()->update_filament_colors_in_full_config();
+    wxGetApp().preset_bundle->export_selections(*wxGetApp().app_config);
+    update_dynamic_filament_list();
+}
+
 void Sidebar::edit_filament()
 {
     p->editing_filament = -1;
@@ -3658,6 +3742,20 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
             c->update();
         obj_list()->update_filament_colors();
         update_dynamic_filament_list();
+    }
+
+    // Printers without a slot-mapping command (Klipper toolchangers) take the tool from the filament number
+    // written into the G-code, so move each mapped filament to the position of the slot it was mapped to.
+    if (!sync_result.direct_sync && !wxGetApp().preset_bundle->is_bbl_vendor()) {
+        std::map<int, int> slot_order;
+        for (const auto& [filament_idx, info] : sync_result.sync_maps) {
+            if (info.ams_id.empty() || info.slot_id.empty())
+                continue;
+            try {
+                slot_order[filament_idx] = std::stoi(info.ams_id) * 4 + std::stoi(info.slot_id);
+            } catch (...) {}
+        }
+        apply_filament_slot_order(slot_order);
     }
 
     auto badge_combox_filament = [sync_color_only](PlaterPresetComboBox *c) {

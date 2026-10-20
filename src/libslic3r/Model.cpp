@@ -2597,6 +2597,30 @@ void ModelVolume::update_extruder_count_when_delete_filament(size_t extruder_cou
     }
 }
 
+void ModelVolume::swap_filaments(size_t a, size_t b, size_t extruder_count)
+{
+    auto swap_opt = [a, b](DynamicPrintConfig& cfg, const char* key) {
+        if (!cfg.has(key))
+            return;
+        int v = cfg.opt_int(key);
+        if (v == int(a))
+            cfg.set_key_value(key, new ConfigOptionInt(int(b)));
+        else if (v == int(b))
+            cfg.set_key_value(key, new ConfigOptionInt(int(a)));
+    };
+    swap_opt(this->config, "extruder");
+    swap_opt(this->config, "support_filament");
+    swap_opt(this->config, "support_interface_filament");
+
+    if (!mmu_segmentation_facets.empty()) {
+        TriangleSelector selector(this->mesh());
+        selector.deserialize(mmu_segmentation_facets.get_data(), false, (EnforcerBlockerType)extruder_count,
+                             EnforcerBlockerType::NONE, EnforcerBlockerType::NONE,
+                             (EnforcerBlockerType)a, (EnforcerBlockerType)b);
+        mmu_segmentation_facets.set(selector);
+    }
+}
+
 void ModelVolume::center_geometry_after_creation(bool update_source_offset)
 {
     Vec3d shift = this->mesh().bounding_box().center();

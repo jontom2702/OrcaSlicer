@@ -361,7 +361,9 @@ public:
                      bool                         needs_reset = true,
                      EnforcerBlockerType          max_ebt     = EnforcerBlockerType::ExtruderMax,
                      EnforcerBlockerType          to_delete_filament = EnforcerBlockerType::NONE,
-                     EnforcerBlockerType          replace_filament = EnforcerBlockerType::NONE);
+                     EnforcerBlockerType          replace_filament = EnforcerBlockerType::NONE,
+                     EnforcerBlockerType          swap_a = EnforcerBlockerType::NONE,
+                     EnforcerBlockerType          swap_b = EnforcerBlockerType::NONE);
 
     // Extract all used facet states from the given TriangleSplittingData.
     static std::vector<EnforcerBlockerType> extract_used_facet_states(const TriangleSplittingData &data);

@@ -247,6 +247,8 @@ public:
     void                update_name_in_list(int obj_idx, int vol_idx) const;
     void                update_filament_values_for_items(const size_t filaments_count);
     void                update_filament_values_for_items_when_delete_filament(const size_t filament_id, const int replace_id = -1);
+    // Exchange filament a and b (0-based) in every object, volume, layer range and support setting.
+    void                swap_filament_values(size_t a, size_t b, size_t filaments_count);
 
     //BBS: update plate
     void                update_plate_values_for_items();

@@ -1050,6 +1050,47 @@ void ObjectList::update_objects_list_filament_column(size_t filaments_count)
     m_prevent_update_filament_in_config = false;
 }
 
+void ObjectList::swap_filament_values(size_t a, size_t b, size_t filaments_count)
+{
+    if (!m_objects || a == b)
+        return;
+    m_prevent_update_filament_in_config = true;
+    const int fa = int(a) + 1, fb = int(b) + 1; // config values are 1-based
+    auto swap_opt = [fa, fb](DynamicPrintConfig& cfg, const char* key) {
+        if (!cfg.has(key))
+            return;
+        int v = cfg.opt_int(key);
+        if (v == fa)
+            cfg.set_key_value(key, new ConfigOptionInt(fb));
+        else if (v == fb)
+            cfg.set_key_value(key, new ConfigOptionInt(fa));
+    };
+    for (size_t i = 0; i < m_objects->size(); ++i) {
+        ModelObject* object = (*m_objects)[i];
+        swap_opt(object->config, "extruder");
+        swap_opt(object->config, "support_filament");
+        swap_opt(object->config, "support_interface_filament");
+        for (ModelVolume* mv : object->volumes)
+            mv->swap_filaments(fa, fb, filaments_count);
+        for (auto& range : object->layer_config_ranges)
+            swap_opt(range.second, "extruder");
+
+        // Keep the object list text in sync with the model.
+        wxDataViewItem item = m_objects_model->GetItemById(i);
+        if (item) {
+            int ext = object->config.has("extruder") ? object->config.extruder() : 1;
+            m_objects_model->SetExtruder(wxString::Format("%d", ext), item);
+        }
+        for (size_t id = 0; id < object->volumes.size(); ++id) {
+            wxDataViewItem vitem = m_objects_model->GetItemByVolumeId(i, id);
+            if (vitem && object->volumes[id]->config.has("extruder"))
+                m_objects_model->SetExtruder(wxString::Format("%d", object->volumes[id]->config.extruder()), vitem);
+        }
+    }
+    update_filament_colors();
+    m_prevent_update_filament_in_config = false;
+}
+
 void ObjectList::update_objects_list_filament_column_when_delete_filament(size_t filament_id, size_t filaments_count, int replace_filament_id)
 {
     m_prevent_update_filament_in_config = true;

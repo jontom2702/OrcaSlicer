@@ -186,6 +186,10 @@ public:
     void add_filament();
     void delete_filament(size_t filament_id = size_t(-1), int replace_filament_id = -1);  // 0 base, -1 means default
     void change_filament(size_t from_id, size_t to_id);  // 0 base
+    // Exchange two filament slots (presets, colors, objects, painted facets) without changing the filament count.
+    void swap_filaments(size_t a, size_t b);  // 0 base
+    // Reorder filaments so that filament i ends up at position dest[i]; used to make the T-number of a mapped filament match its printer slot.
+    void apply_filament_slot_order(const std::map<int, int>& dest);
     void edit_filament();
     void add_custom_filament(wxColour new_col);
     bool is_new_project_in_gcode3mf();

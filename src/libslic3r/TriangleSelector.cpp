@@ -1773,7 +1773,9 @@ void TriangleSelector::deserialize(const TriangleSplittingData &data,
                                    bool                         needs_reset,
                                    EnforcerBlockerType          max_ebt,
                                    EnforcerBlockerType          to_delete_filament,
-                                   EnforcerBlockerType          replace_filament)
+                                   EnforcerBlockerType          replace_filament,
+                                   EnforcerBlockerType          swap_a,
+                                   EnforcerBlockerType          swap_b)
 {
     if (needs_reset)
         reset(); // dump any current state
@@ -1826,6 +1828,14 @@ void TriangleSelector::deserialize(const TriangleSplittingData &data,
                 state = replace_filament;
             else if (to_delete_filament != EnforcerBlockerType::NONE && state != EnforcerBlockerType::NONE) {
                 state = state > to_delete_filament ? EnforcerBlockerType((int)state - 1) : state;
+            }
+
+            // Exchange two filament ids (used when filaments are reordered, nothing is deleted).
+            if (swap_a != EnforcerBlockerType::NONE && swap_b != EnforcerBlockerType::NONE) {
+                if (state == swap_a)
+                    state = swap_b;
+                else if (state == swap_b)
+                    state = swap_a;
             }
 
             if (state > max_ebt) {
