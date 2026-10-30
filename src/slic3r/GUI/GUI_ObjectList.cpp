@@ -1079,7 +1079,7 @@ void ObjectList::swap_filament_values(size_t a, size_t b, size_t filaments_count
         return;
     m_prevent_update_filament_in_config = true;
     const int fa = int(a) + 1, fb = int(b) + 1; // config values are 1-based
-    auto swap_opt = [fa, fb](DynamicPrintConfig& cfg, const char* key) {
+    auto swap_opt = [fa, fb](auto& cfg, const char* key) {
         if (!cfg.has(key))
             return;
         int v = cfg.opt_int(key);
