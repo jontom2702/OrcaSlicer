@@ -2599,7 +2599,7 @@ void ModelVolume::update_extruder_count_when_delete_filament(size_t extruder_cou
 
 void ModelVolume::swap_filaments(size_t a, size_t b, size_t extruder_count)
 {
-    auto swap_opt = [a, b](DynamicPrintConfig& cfg, const char* key) {
+    auto swap_opt = [a, b](auto& cfg, const char* key) {
         if (!cfg.has(key))
             return;
         int v = cfg.opt_int(key);
