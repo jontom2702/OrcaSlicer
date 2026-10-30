@@ -2615,6 +2615,11 @@ GUI_App::~GUI_App()
 bool GUI_App::is_blocking_printing(MachineObject *obj_)
 {
     PresetBundle *preset_bundle = wxGetApp().preset_bundle;
+    // The printer-model compatibility list is a Bambu concept. For other printers (e.g. Moonraker/Klipper) the
+    // connected machine's type is whatever preset was selected when it was added, so it can go stale after
+    // switching presets and wrongly block syncing.
+    if (preset_bundle && !preset_bundle->is_bbl_vendor())
+        return false;
     const std::string source_model = preset_bundle
         ? preset_bundle->printers.get_edited_preset().get_printer_type(preset_bundle)
         : std::string();
