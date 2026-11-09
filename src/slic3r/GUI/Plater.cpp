@@ -5963,6 +5963,11 @@ void Sidebar::apply_filament_slot_order(const std::map<int, int>& dest)
 {
     if (dest.empty())
         return;
+    // A mixed filament refers to physical filaments by number, so reordering them would silently break it.
+    if (wxGetApp().preset_bundle->num_mixed_filaments() > 0) {
+        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": mixed filaments present, slot order left unchanged";
+        return;
+    }
     int needed = int(p->combos_filament.size());
     for (const auto& [from, to] : dest)
         needed = std::max(needed, to + 1);
