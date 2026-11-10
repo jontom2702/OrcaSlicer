@@ -6568,20 +6568,6 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
         update_dynamic_filament_list();
     }
 
-    // Printers without a slot-mapping command (Klipper toolchangers) take the tool from the filament number
-    // written into the G-code, so move each mapped filament to the position of the slot it was mapped to.
-    if (!sync_result.direct_sync && !wxGetApp().preset_bundle->is_bbl_vendor()) {
-        std::map<int, int> slot_order;
-        for (const auto& [filament_idx, info] : sync_result.sync_maps) {
-            if (info.ams_id.empty() || info.slot_id.empty())
-                continue;
-            try {
-                slot_order[filament_idx] = std::stoi(info.ams_id) * 4 + std::stoi(info.slot_id);
-            } catch (...) {}
-        }
-        apply_filament_slot_order(slot_order);
-    }
-
     auto badge_combox_filament = [sync_color_only](PlaterPresetComboBox *c) {
         auto tip     = sync_color_only ? _L("Only filament color information has been synchronized from printer.") :
                                          _L("Filament type and color information have been synchronized, but slot information is not included.");
