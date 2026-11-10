@@ -222,6 +222,9 @@ public:
     void swap_filaments(size_t a, size_t b);  // 0 base
     // Reorder filaments so that filament i ends up at position dest[i]; used to make the T-number of a mapped filament match its printer slot.
     void apply_filament_slot_order(const std::map<int, int>& dest);
+    // Slot each project filament was mapped to in the last sync (index = filament, -1 = unmapped).
+    // Empty unless the project's filament colours are still the ones the mapping was made for.
+    std::vector<int> filament_slot_map() const;
     void edit_filament();
     void add_custom_filament(wxColour new_col, const std::string& preset_name = std::string(), bool skip_preset_validation = false);
     bool is_new_project_in_gcode3mf();
@@ -230,6 +233,8 @@ public:
     void load_ams_list(MachineObject* obj);
     std::map<int, DynamicPrintConfig> build_filament_ams_list(MachineObject* obj);
     void sync_ams_list(bool is_from_big_sync_btn = false);
+    std::vector<int> m_filament_slot_map;
+    std::string      m_filament_slot_map_colors;
     bool sync_extruder_list();
     bool is_fila_switch_ready();
     void reset_fila_switch();

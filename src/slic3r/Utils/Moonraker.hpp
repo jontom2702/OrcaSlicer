@@ -60,6 +60,10 @@ protected:
     void set_auth(Http &http) const;
     std::string make_url(const std::string &path) const;
     bool start_print(wxString &error_msg, const std::string &filename) const;
+    // POST /printer/gcode/script; blocks until Klipper has run the script.
+    bool run_gcode_script(wxString &error_msg, const std::string &script) const;
+    // True while Klipper reports print_stats.state as printing or paused.
+    bool is_printing() const;
 };
 
 }
