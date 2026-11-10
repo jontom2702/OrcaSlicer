@@ -29,6 +29,11 @@ public:
 
     static AgentInfo get_agent_info_static();
     AgentInfo        get_agent_info() override { return get_agent_info_static(); }
+    // Gcode that gives each project filament (T-number) the physical lane the user mapped it to,
+    // for firmware whose tool-change macros resolve T-numbers through AFC lane maps (OpenCreator).
+    // `ams_mapping` is the JSON array the print dialog builds: one lane index per filament, -1 if unmapped.
+    // Empty when nothing needs remapping.
+    static std::string build_lane_map_script(const std::string& ams_mapping);
 
     // Cloud Agent Dependency
     void set_cloud_agent(std::shared_ptr<ICloudServiceAgent> cloud) override;
@@ -134,11 +139,6 @@ protected:
     // Starts the print of a file already uploaded to the gcodes root
     virtual bool print_uploaded_file(const PrintParams& params, const std::string& filename);
 
-    // Gcode that gives each project filament (T-number) the physical lane the user mapped it to,
-    // for firmware whose tool-change macros resolve T-numbers through AFC lane maps (OpenCreator).
-    // `ams_mapping` is the JSON array the print dialog builds: one lane index per filament, -1 if unmapped.
-    // Empty when nothing needs remapping.
-    static std::string build_lane_map_script(const std::string& ams_mapping);
     // Whether the printer prints a .gcode.3mf bundle as is (its use_3mf option)
     virtual bool accepts_3mf() const;
     void start_status_stream(const std::string& dev_id, const std::string& base_url, const std::string& api_key);
