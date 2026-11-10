@@ -563,8 +563,44 @@ int MoonrakerPrinterAgent::start_local_print(PrintParams params, OnUpdateStatusF
     return BAMBU_NETWORK_SUCCESS;
 }
 
-bool MoonrakerPrinterAgent::print_uploaded_file(const PrintParams& /*params*/, const std::string& filename)
+std::string MoonrakerPrinterAgent::build_lane_map_script(const std::string& ams_mapping)
 {
+    const auto mapping = nlohmann::json::parse(ams_mapping, nullptr, false);
+    if (!mapping.is_array())
+        return {};
+
+    // SET_MAP swaps the T-number with the lane that currently holds it, so applying the entries in
+    // order from a 1:1 map never displaces a lane that was already set (their T-numbers differ).
+    std::string script;
+    std::vector<bool> lane_used(4, false);
+    bool needs_map = false;
+    for (int filament = 0; filament < int(mapping.size()) && filament < 4; ++filament) {
+        if (!mapping[filament].is_number_integer())
+            continue;
+        const int lane = mapping[filament].get<int>();
+        if (lane < 0 || lane >= 4 || lane_used[lane])
+            continue;
+        lane_used[lane] = true;
+        if (lane != filament)
+            needs_map = true;
+        script += "\nSET_MAP LANE=extruder" + std::to_string(lane) + " MAP=T" + std::to_string(filament);
+    }
+    if (!needs_map)
+        return {};
+    // Start from the default 1:1 map so a stale map from an earlier job cannot leak in.
+    return "AFC_RESET_MAPPING RUNOUT=no" + script;
+}
+
+bool MoonrakerPrinterAgent::print_uploaded_file(const PrintParams& params, const std::string& filename)
+{
+    // The firmware reads the lane map when the job starts, so it has to be set before SDCARD_PRINT_FILE.
+    // A failure is fatal: starting anyway would print with the wrong tool.
+    const std::string map_script = build_lane_map_script(params.ams_mapping);
+    if (!map_script.empty()) {
+        BOOST_LOG_TRIVIAL(info) << "MoonrakerPrinterAgent: applying lane map before print: " << map_script;
+        if (!send_gcode_sync(device_info.dev_id, map_script))
+            return false;
+    }
     // Start print via gcode script (simpler than JSON-RPC); quoted so spaces and apostrophes stay part of the name
     return send_gcode_sync(device_info.dev_id, "SDCARD_PRINT_FILE FILENAME=\"" + filename + "\"");
 }
