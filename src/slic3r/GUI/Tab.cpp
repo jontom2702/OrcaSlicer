@@ -7699,13 +7699,18 @@ bool Tab::select_preset(
             m_presets->discard_current_changes();
 
         // A loaded project's filament colours belong to the project, not to the printer: keep them across a printer switch.
-        std::vector<std::string> kept_colours, kept_multi_colours, kept_colour_types;
+        std::vector<std::string> kept_colours, kept_multi_colours, kept_colour_types, kept_presets, kept_filament_types;
         const bool keep_project_colours = printer_tab && !wxGetApp().model().objects.empty();
         if (keep_project_colours) {
             const auto& cfg = m_preset_bundle->project_config;
             kept_colours       = cfg.option<ConfigOptionStrings>("filament_colour")->values;
             kept_multi_colours = cfg.option<ConfigOptionStrings>("filament_multi_colour")->values;
             kept_colour_types  = cfg.option<ConfigOptionStrings>("filament_colour_type")->values;
+            kept_presets       = m_preset_bundle->filament_presets;
+            for (const std::string& name : kept_presets) {
+                const Preset* kept = m_preset_bundle->filaments.find_preset(name, false);
+                kept_filament_types.push_back(kept ? kept->config.opt_string("filament_type", 0u) : std::string());
+            }
         }
         const bool is_selected = m_presets->select_preset_by_name(preset_name, false) || delete_current;
         assert(m_presets->get_edited_preset().name == preset_name || ! is_selected);
@@ -7763,6 +7768,29 @@ bool Tab::select_preset(
             restore(cfg.option<ConfigOptionStrings>("filament_colour"), kept_colours);
             restore(cfg.option<ConfigOptionStrings>("filament_multi_colour"), kept_multi_colours);
             restore(cfg.option<ConfigOptionStrings>("filament_colour_type"), kept_colour_types);
+            // Keep each slot's filament too: the same preset when the new printer accepts it, otherwise a visible compatible
+            // preset of the same type (preferring a generic one) instead of whatever was last used on that printer.
+            auto& filaments = m_preset_bundle->filaments;
+            for (size_t i = 0; i < kept_presets.size() && i < m_preset_bundle->filament_presets.size(); ++i) {
+                const Preset* same = filaments.find_preset(kept_presets[i], false);
+                std::string   chosen;
+                if (same != nullptr && same->is_visible && same->is_compatible)
+                    chosen = same->name;
+                else if (!kept_filament_types[i].empty()) {
+                    for (const Preset& candidate : filaments) {
+                        if (candidate.is_default || !candidate.is_visible || !candidate.is_compatible ||
+                            candidate.config.opt_string("filament_type", 0u) != kept_filament_types[i])
+                            continue;
+                        if (chosen.empty() || (boost::icontains(candidate.name, "generic") && !boost::icontains(chosen, "generic")))
+                            chosen = candidate.name;
+                    }
+                }
+                if (!chosen.empty()) {
+                    m_preset_bundle->set_filament_preset(i, chosen);
+                    if (i == 0)
+                        filaments.select_preset_by_name(chosen, true);
+                }
+            }
             wxGetApp().plater()->update_filament_colors_in_full_config();
             wxGetApp().plater()->sidebar().update_presets(Preset::TYPE_FILAMENT);
         }
