@@ -16,7 +16,6 @@
 #include "slic3r/GUI/I18N.hpp"
 #include "slic3r/GUI/format.hpp"
 #include "Http.hpp"
-#include "MoonrakerPrinterAgent.hpp"
 
 namespace pt = boost::property_tree;
 
@@ -212,58 +211,6 @@ bool Moonraker::start_print(wxString &error_msg, const std::string &filename) co
     return res;
 }
 
-bool Moonraker::run_gcode_script(wxString &error_msg, const std::string &script) const
-{
-    const char *name = get_name();
-    bool res = true;
-    auto url = make_url("printer/gcode/script");
-    pt::ptree body_tree;
-    body_tree.put("script", script);
-    std::ostringstream body_ss;
-    pt::write_json(body_ss, body_tree, /*pretty=*/false);
-
-    BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Running gcode script: %2%") % name % script;
-
-    auto http = Http::post(std::move(url));
-    set_auth(http);
-    http.header("Content-Type", "application/json")
-        .set_post_body(body_ss.str())
-        .on_error([&](std::string body, std::string error, unsigned status) {
-            BOOST_LOG_TRIVIAL(error) << boost::format("%1%: gcode script failed: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
-            res       = false;
-            error_msg = format_error(body, error, status);
-        })
-#ifdef WIN32
-        .ssl_revoke_best_effort(m_ssl_revoke_best_effort)
-#endif
-        .perform_sync();
-    return res;
-}
-
-bool Moonraker::is_printing() const
-{
-    bool printing = false;
-    auto http     = Http::get(make_url("printer/objects/query?print_stats=state"));
-    set_auth(http);
-    http.on_complete([&](std::string body, unsigned) {
-            try {
-                std::stringstream ss(body);
-                pt::ptree         ptree;
-                pt::read_json(ss, ptree);
-                const auto state = ptree.get_optional<std::string>("result.status.print_stats.state");
-                printing         = state && (*state == "printing" || *state == "paused");
-            } catch (const std::exception &) {}
-        })
-        .on_error([&](std::string, std::string error, unsigned status) {
-            BOOST_LOG_TRIVIAL(warning) << "Moonraker: could not read print state: " << error << ", HTTP " << status;
-        })
-#ifdef WIN32
-        .ssl_revoke_best_effort(m_ssl_revoke_best_effort)
-#endif
-        .perform_sync();
-    return printing;
-}
-
 bool Moonraker::upload(PrintHostUpload upload_data, ProgressFn progress_fn, ErrorFn error_fn, InfoFn info_fn) const
 {
     // POST /server/files/upload with `print=true` so Moonraker starts the print
@@ -291,24 +238,6 @@ bool Moonraker::upload(PrintHostUpload upload_data, ProgressFn progress_fn, Erro
     const std::string root = upload_data.storage.empty() ? std::string("gcodes") : upload_data.storage;
 
     const bool want_start = upload_data.post_action == PrintHostPostUploadAction::StartPrint;
-
-    // Firmware whose tool-change macros follow AFC lane maps (OpenCreator) reads the map when the job starts, so
-    // it must be set before the upload begins the print. Never touch it under a running job, and never start
-    // on a failure: that would print on the wrong tool.
-    if (want_start) {
-        const std::string lane_script = MoonrakerPrinterAgent::build_lane_map_script(upload_data.extended("ams_mapping"));
-        if (!lane_script.empty()) {
-            if (is_printing()) {
-                error_fn(_L("The printer is busy, so the filament mapping can't be applied. Wait for the current print to finish."));
-                return false;
-            }
-            wxString script_msg;
-            if (!run_gcode_script(script_msg, lane_script)) {
-                error_fn(std::move(script_msg));
-                return false;
-            }
-        }
-    }
 
     std::string url = make_url("server/files/upload");
     bool result = true;

@@ -5959,14 +5959,6 @@ void Sidebar::swap_filaments(size_t a, size_t b)
     obj_list()->swap_filament_values(a, b, n);
 }
 
-std::vector<int> Sidebar::filament_slot_map() const
-{
-    const auto* colours = wxGetApp().preset_bundle->project_config.option("filament_colour");
-    if (colours == nullptr || colours->serialize() != m_filament_slot_map_colors)
-        return {};
-    return m_filament_slot_map;
-}
-
 void Sidebar::apply_filament_slot_order(const std::map<int, int>& dest)
 {
     if (dest.empty())
@@ -6574,21 +6566,6 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
             c->update();
         obj_list()->update_filament_colors();
         update_dynamic_filament_list();
-    }
-
-    // Printers without a slot-mapping command (Klipper toolchangers) get the mapping when the job is sent, so keep it.
-    if (!wxGetApp().preset_bundle->is_bbl_vendor()) {
-        m_filament_slot_map.assign(wxGetApp().preset_bundle->filament_presets.size(), -1);
-        m_filament_slot_map_colors = wxGetApp().preset_bundle->project_config.option("filament_colour")->serialize();
-        if (!sync_result.direct_sync) {
-            for (const auto& [filament_idx, info] : sync_result.sync_maps) {
-                if (filament_idx < 0 || filament_idx >= int(m_filament_slot_map.size()) || info.ams_id.empty() || info.slot_id.empty())
-                    continue;
-                try {
-                    m_filament_slot_map[filament_idx] = std::stoi(info.ams_id) * 4 + std::stoi(info.slot_id);
-                } catch (...) {}
-            }
-        }
     }
 
     auto badge_combox_filament = [sync_color_only](PlaterPresetComboBox *c) {
@@ -21300,13 +21277,6 @@ void Plater::send_gcode_legacy(int plate_idx, Export3mfProgressFn proFn)
         upload_job.upload_data.group       = pDlg->group();
         upload_job.upload_data.storage     = pDlg->storage();
         upload_job.upload_data.extended_info = pDlg->extendedInfo();
-        // A Klipper toolchanger takes the colour-to-slot mapping from the last sync; the Moonraker host applies it before the job starts.
-        if (host_type == htMoonraker) {
-            const std::vector<int> slot_map = sidebar().filament_slot_map();
-            if (slot_map.size() == preset_bundle->filament_presets.size() && std::any_of(slot_map.begin(), slot_map.end(), [](int v) { return v >= 0; })) {
-                upload_job.upload_data.extended_info["ams_mapping"] = nlohmann::json(slot_map).dump();
-            }
-        }
         // Orca: gcode inside a .gcode.3mf is index-coded (Metadata/plate_<N>.gcode) and a bundle may
         // carry several of them, so the upload must name which plate to print via a 1-based plateindex.
         // Even a single-plate bundle needs it, since its gcode entry is still indexed. The host upload
