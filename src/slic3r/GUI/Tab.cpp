@@ -7736,8 +7736,10 @@ bool Tab::select_preset(
         // check if there is something in the cache to move to the new selected preset
         apply_config_from_cache();
 
-        // Orca: update presets for the selected printer
-        if (m_type == Preset::TYPE_PRINTER && wxGetApp().app_config->get_bool("remember_printer_config")) {
+        // Orca: update presets for the selected printer. With a model already on the plate the project's own filaments
+        // and colours win: restoring the printer's last-used ones would replace what the loaded project asked for.
+        if (m_type == Preset::TYPE_PRINTER && wxGetApp().app_config->get_bool("remember_printer_config") &&
+            wxGetApp().model().objects.empty()) {
             m_preset_bundle->update_selections(*wxGetApp().app_config);
             wxGetApp().plater()->sidebar().on_filament_count_change(m_preset_bundle->filament_presets.size());
         }
