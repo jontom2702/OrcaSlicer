@@ -7698,6 +7698,15 @@ bool Tab::select_preset(
         if (current_dirty)
             m_presets->discard_current_changes();
 
+        // A loaded project's filament colours belong to the project, not to the printer: keep them across a printer switch.
+        std::vector<std::string> kept_colours, kept_multi_colours, kept_colour_types;
+        const bool keep_project_colours = printer_tab && !wxGetApp().model().objects.empty();
+        if (keep_project_colours) {
+            const auto& cfg = m_preset_bundle->project_config;
+            kept_colours       = cfg.option<ConfigOptionStrings>("filament_colour")->values;
+            kept_multi_colours = cfg.option<ConfigOptionStrings>("filament_multi_colour")->values;
+            kept_colour_types  = cfg.option<ConfigOptionStrings>("filament_colour_type")->values;
+        }
         const bool is_selected = m_presets->select_preset_by_name(preset_name, false) || delete_current;
         assert(m_presets->get_edited_preset().name == preset_name || ! is_selected);
         // Mark the print & filament enabled if they are compatible with the currently selected preset.
@@ -7744,6 +7753,19 @@ bool Tab::select_preset(
             wxGetApp().plater()->sidebar().on_filament_count_change(m_preset_bundle->filament_presets.size());
         }
         load_current_preset();
+
+        if (keep_project_colours) {
+            auto& cfg = m_preset_bundle->project_config;
+            auto restore = [](ConfigOptionStrings* opt, const std::vector<std::string>& kept) {
+                for (size_t i = 0; opt != nullptr && i < kept.size() && i < opt->values.size(); ++i)
+                    opt->values[i] = kept[i];
+            };
+            restore(cfg.option<ConfigOptionStrings>("filament_colour"), kept_colours);
+            restore(cfg.option<ConfigOptionStrings>("filament_multi_colour"), kept_multi_colours);
+            restore(cfg.option<ConfigOptionStrings>("filament_colour_type"), kept_colour_types);
+            wxGetApp().plater()->update_filament_colors_in_full_config();
+            wxGetApp().plater()->sidebar().update_presets(Preset::TYPE_FILAMENT);
+        }
 
         // Wait for the settings dialog to close; its edits are still provisional.
         if (printer_tab && is_selected) {
