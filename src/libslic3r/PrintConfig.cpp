@@ -7384,6 +7384,19 @@ void PrintConfigDef::init_fff_params()
     def->mode     = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
+    def           = this->add("support_critical_regions_level", coPercent);
+    def->label    = L("Critical regions support level");
+    def->category = L("Support");
+    def->tooltip  = L("How much of the ordinary overhangs also get support when \"Support critical regions only\" is on.\n"
+                      "0% supports only the critical regions (sharp tails, cantilevers).\n"
+                      "Higher values add support for ordinary overhangs, widest first: a lower value only adds the largest overhang areas, "
+                      "and 100% supports every overhang, like normal automatic tree supports.");
+    def->sidetext = "%";
+    def->min      = 0;
+    def->max      = 100;
+    def->mode     = comAdvanced;
+    def->set_default_value(new ConfigOptionPercent(0));
+
     def = this->add("support_remove_small_overhang", coBool);
     def->label = L("Ignore small overhangs");
     def->category = L("Support");

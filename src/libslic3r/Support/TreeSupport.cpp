@@ -757,6 +757,10 @@ void TreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
     const coordf_t max_bridge_length = scale_(config.max_bridge_length.value);
     const bool bridge_no_support = max_bridge_length > 0;
     const bool support_critical_regions_only = config.support_critical_regions_only.value;
+    // Share of ordinary overhangs kept in critical-regions-only mode: 0 keeps none, 100 keeps all.
+    const double critical_regions_level = std::clamp(config.support_critical_regions_level.value, 0., 100.) / 100.;
+    // Ordinary overhangs narrower than this are dropped; the limit shrinks as the level rises.
+    const coordf_t critical_regions_max_width = scale_(10.);
     bool config_remove_small_overhangs = config.support_remove_small_overhang.value;
     bool config_detect_sharp_tails = g_config_support_sharp_tails;
     const int enforce_support_layers = config.enforce_support_layers.value;
@@ -1261,7 +1265,18 @@ void TreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
         }
 
         if (support_critical_regions_only && is_auto(stype)) {
-            layer->loverhangs.clear();  // remove oridinary overhangs, only keep cantilevers and sharp tails (added later)
+            // Ordinary overhangs are removed, only cantilevers and sharp tails (added later) are kept. With a level above 0,
+            // the widest ordinary overhangs are kept too: an overhang stays if it is wider than the width limit.
+            ExPolygons kept_overhangs;
+            if (critical_regions_level >= 1.)
+                kept_overhangs = std::move(layer->loverhangs);
+            else if (critical_regions_level > 0.) {
+                const coordf_t min_width = (1. - critical_regions_level) * critical_regions_max_width;
+                for (const ExPolygon& overhang : layer->loverhangs)
+                    if (!offset_ex(overhang, -min_width / 2.).empty())
+                        kept_overhangs.push_back(overhang);
+            }
+            layer->loverhangs = std::move(kept_overhangs);
             append(layer->loverhangs, layer->cantilevers);
         }
 

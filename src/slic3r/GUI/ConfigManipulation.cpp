@@ -1097,6 +1097,8 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, in
     toggle_line("max_bridge_length", support_is_tree, -1, _L("Enable tree supports to show the maximum bridge length."));
     toggle_line("bridge_no_support", !support_is_tree, -1, _L("Tree supports use maximum bridge length instead of the bridge support setting."));
     toggle_line("support_critical_regions_only", is_auto(support_type) && support_is_tree, -1, _L("Enable automatic tree supports to show this setting."));
+    toggle_line("support_critical_regions_level", is_auto(support_type) && support_is_tree && config->opt_bool("support_critical_regions_only"), -1,
+                _L("Enable \"Support critical regions only\" with automatic tree supports to show this setting."));
 
     for (auto el : { "support_interface_filament",
         "support_interface_loop_pattern", "support_bottom_interface_spacing" })
